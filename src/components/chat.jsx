@@ -1,0 +1,29 @@
+import ChatMessage from "./ChatMessage";
+
+export default function Chat({ messages, isLoading }) {
+  return (
+    <div className="flex flex-1 flex-col gap-4 overflow-y-auto py-6">
+      {messages.map((message) => (
+        <ChatMessage
+          key={message.id}
+          role={message.role}
+          content={message.content}
+        />
+      ))}
+
+      {isLoading && (
+        <div className="flex items-center gap-3 px-3 py-2">
+          <div className="flex gap-1">
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:150ms]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:300ms]" />
+          </div>
+
+          <span className="text-sm text-zinc-500">
+            Study Buddy is thinking...
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
