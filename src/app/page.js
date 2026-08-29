@@ -144,45 +144,48 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#09090b] text-zinc-100">
-      <div className="flex min-h-screen">
-        <Sidebar />
+<main className="min-h-screen bg-[#09090b] text-zinc-100">
+  <div className="min-h-screen">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-white/10 bg-[#0d0d0f] lg:flex">
+    <Sidebar />
+    </aside>
+    
 
-        <section className="flex min-h-screen min-w-0 flex-1 flex-col">
-          <MobileHeader />
+    <section className="min-h-screen min-w-0 lg:ml-64">
+      <MobileHeader />
 
-          <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 sm:px-6 lg:px-8">
-            {messages.length === 0 && <WelcomeScreen />}
-
-            {messages.length > 0 && (
-              <Chat
-                messages={messages}
-                isLoading={isLoading}
-              />
-            )}
-
-            {error && (
-              <div className="mb-3 flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">
-                <span>{error}</span>
-
-                <button
-                  type="button"
-                  onClick={() => setError("")}
-                  className="ml-4 text-red-400 transition hover:text-red-200"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
-            <ChatInput
-              onSend={handleSendMessage}
-              onStop={handleStop}
+      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 sm:px-6 lg:px-8">
+          {messages.length === 0 && <WelcomeScreen />}
+  
+          {messages.length > 0 && (
+            <Chat
+              messages={messages}
               isLoading={isLoading}
             />
-          </div>
-        </section>
-      </div>
-    </main>
+          )}
+  
+          {error && (
+            <div className="mb-3 flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">
+              <span>{error}</span>
+  
+              <button
+                type="button"
+                onClick={() => setError("")}
+                className="ml-4 text-red-400 transition hover:text-red-200"
+              >
+                ×
+              </button>
+            </div>
+          )}
+  
+          <ChatInput
+            onSend={handleSendMessage}
+            onStop={handleStop}
+            isLoading={isLoading}
+          />
+        </div>
+      </section>
+    </div>
+  </main>
   );
 }

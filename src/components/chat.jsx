@@ -1,6 +1,17 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import ChatMessage from "./ChatMessage";
 
 export default function Chat({ messages, isLoading }) {
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages]);
+
   const lastMessage = messages[messages.length - 1];
 
   const isThinking =
@@ -9,28 +20,32 @@ export default function Chat({ messages, isLoading }) {
     !lastMessage.content;
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto py-6">
-      {messages.map((message) => (
-        <ChatMessage
-          key={message.id}
-          role={message.role}
-          content={message.content}
-        />
-      ))}
+    <div className="min-h-0 flex-1 overflow-y-auto py-6">
+      <div className="flex flex-col gap-4">
+        {messages.map((message) => (
+          <ChatMessage
+            key={message.id}
+            role={message.role}
+            content={message.content}
+          />
+        ))}
 
-      {isThinking && (
-        <div className="flex items-center gap-3 px-3 py-2">
-          <div className="flex gap-1">
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500" />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:150ms]" />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:300ms]" />
+        {isThinking && (
+          <div className="flex items-center gap-3 px-3 py-2">
+            <div className="flex gap-1">
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:150ms]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:300ms]" />
+            </div>
+
+            <span className="text-sm text-zinc-500">
+              Study Buddy is thinking...
+            </span>
           </div>
+        )}
 
-          <span className="text-sm text-zinc-500">
-            Study Buddy is thinking...
-          </span>
-        </div>
-      )}
+        <div ref={bottomRef} />
+      </div>
     </div>
   );
 }
