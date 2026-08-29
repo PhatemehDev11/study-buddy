@@ -16,14 +16,14 @@ export async function POST(request) {
           messages: [
             {
               role: "system",
-              content:
-                "You are Study Buddy, a helpful AI tutor.",
+              content: "You are Study Buddy, a helpful AI tutor.",
             },
             ...messages,
           ],
 
           provider: {
             allow_fallbacks: true,
+            require_parameters: true,
           },
 
           stream: true,
@@ -40,7 +40,6 @@ export async function POST(request) {
         {
           error:
             data.error?.message ||
-            data.error ||
             "OpenRouter request failed",
         },
         { status: response.status }

@@ -1,6 +1,13 @@
 import ChatMessage from "./ChatMessage";
 
 export default function Chat({ messages, isLoading }) {
+  const lastMessage = messages[messages.length - 1];
+
+  const isThinking =
+    isLoading &&
+    lastMessage?.role === "assistant" &&
+    !lastMessage.content;
+
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto py-6">
       {messages.map((message) => (
@@ -11,7 +18,7 @@ export default function Chat({ messages, isLoading }) {
         />
       ))}
 
-      {isLoading && (
+      {isThinking && (
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="flex gap-1">
             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500" />
