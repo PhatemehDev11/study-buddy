@@ -4,13 +4,8 @@ import { useEffect, useRef } from "react";
 import ChatMessage from "./ChatMessage";
 
 export default function Chat({ messages, isLoading }) {
+  const chatContainerRef = useRef(null);
   const bottomRef = useRef(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
-  }, [messages]);
 
   const lastMessage = messages[messages.length - 1];
 
@@ -19,9 +14,19 @@ export default function Chat({ messages, isLoading }) {
     lastMessage?.role === "assistant" &&
     !lastMessage.content;
 
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, [messages]);
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto py-6">
-      <div className="flex flex-col gap-4">
+    <div
+      ref={chatContainerRef}
+      className="min-h-0 flex-1 overflow-y-auto"
+    >
+      <div className="flex flex-col gap-4 py-6">
         {messages.map((message) => (
           <ChatMessage
             key={message.id}
@@ -44,6 +49,7 @@ export default function Chat({ messages, isLoading }) {
           </div>
         )}
 
+        {/* Scroll anchor */}
         <div ref={bottomRef} />
       </div>
     </div>
