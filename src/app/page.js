@@ -2,20 +2,90 @@
 
 import Sidebar from "@/components/sidebar";
 import MobileHeader from "@/components/MobileHeader";
-import WelcomeScreen from "@/components/WelcomeScreen";
 import ChatInput from "@/components/ChatInput";
 import Chat from "@/components/chat";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const STORAGE_KEY = "study-buddy-conversations";
 
 export default function Home() {
   const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
   const abortController = useRef(null);
 
+  useEffect(() => {
+    const savedConversations = localStorage.getItem(STORAGE_KEY);
+
+    if (!savedConversations) return;
+
+    try {
+      const parsedConversations = JSON.parse(savedConversations);
+
+      setConversations(parsedConversations);
+
+      if (parsedConversations.length > 0) {
+        const latestConversation = parsedConversations[0];
+
+        setActiveConversationId(latestConversation.id);
+        setMessages(latestConversation.messages || []);
+      }
+    } catch (error) {
+      console.error("Failed to load conversations:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(conversations)
+    );
+  }, [conversations]);
+
+  const updateConversation = (conversationId, updatedMessages) => {
+    setConversations((currentConversations) =>
+      currentConversations.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              messages: updatedMessages,
+            }
+          : conversation
+      )
+    );
+  };
+
+  const createConversation = (firstMessage) => {
+    const conversation = {
+      id: Date.now(),
+      title:
+        firstMessage.length > 40
+          ? `${firstMessage.slice(0, 40)}...`
+          : firstMessage,
+      messages: [],
+    };
+
+    setConversations((currentConversations) => [
+      conversation,
+      ...currentConversations,
+    ]);
+
+    setActiveConversationId(conversation.id);
+
+    return conversation.id;
+  };
+
   const handleSendMessage = async (content) => {
     if (isLoading) return;
+
+    let conversationId = activeConversationId;
+
+    if (!conversationId) {
+      conversationId = createConversation(content);
+    }
 
     const userMessage = {
       id: Date.now(),
@@ -26,6 +96,8 @@ export default function Home() {
     const updatedMessages = [...messages, userMessage];
 
     setMessages(updatedMessages);
+    updateConversation(conversationId, updatedMessages);
+
     setIsLoading(true);
     setError("");
 
@@ -61,14 +133,17 @@ export default function Home() {
 
       const assistantId = Date.now() + 1;
 
-      setMessages((currentMessages) => [
-        ...currentMessages,
+      const messagesWithAssistant = [
+        ...updatedMessages,
         {
           id: assistantId,
           role: "assistant",
           content: "",
         },
-      ]);
+      ];
+
+      setMessages(messagesWithAssistant);
+      updateConversation(conversationId, messagesWithAssistant);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -111,18 +186,26 @@ export default function Home() {
 
             assistantContent += text;
 
-            setMessages((currentMessages) =>
-              currentMessages.map((message) =>
-                message.id === assistantId
-                  ? {
-                      ...message,
-                      content: assistantContent,
-                    }
-                  : message
-              )
-            );
+            setMessages((currentMessages) => {
+              const updatedMessages = currentMessages.map(
+                (message) =>
+                  message.id === assistantId
+                    ? {
+                        ...message,
+                        content: assistantContent,
+                      }
+                    : message
+              );
+
+              updateConversation(
+                conversationId,
+                updatedMessages
+              );
+
+              return updatedMessages;
+            });
           } catch {
-            
+            // Ignore malformed stream chunks.
           }
         }
       }
@@ -146,37 +229,53 @@ export default function Home() {
   const handleNewChat = () => {
     abortController.current?.abort();
     abortController.current = null;
-  
+
     setMessages([]);
+    setActiveConversationId(null);
     setIsLoading(false);
+    setError("");
+  };
+
+  const handleSelectConversation = (conversationId) => {
+    if (isLoading) return;
+
+    const conversation = conversations.find(
+      (conversation) => conversation.id === conversationId
+    );
+
+    if (!conversation) return;
+
+    setActiveConversationId(conversationId);
+    setMessages(conversation.messages || []);
     setError("");
   };
 
   return (
     <main className="h-screen overflow-hidden bg-[#09090b] text-zinc-100">
-     
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 border-r border-white/10 bg-[#0d0d0f] lg:block">
-        <Sidebar onNewChat={handleNewChat}/>
+        <Sidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onNewChat={handleNewChat}
+          onSelectConversation={handleSelectConversation}
+        />
       </aside>
-  
+
       <section className="h-screen min-w-0 lg:ml-64">
         <div className="flex h-full flex-col">
           <MobileHeader />
-  
-          
+
           <div className="min-h-0 flex-1">
             <div className="mx-auto flex h-full w-full max-w-4xl flex-col px-4 sm:px-6 lg:px-8">
-              
-        
               <Chat
                 messages={messages}
                 isLoading={isLoading}
               />
-  
+
               {error && (
                 <div className="mb-3 flex shrink-0 items-center justify-between rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">
                   <span>{error}</span>
-  
+
                   <button
                     type="button"
                     onClick={() => setError("")}
@@ -186,14 +285,12 @@ export default function Home() {
                   </button>
                 </div>
               )}
-  
-        
+
               <ChatInput
                 onSend={handleSendMessage}
                 onStop={handleStop}
                 isLoading={isLoading}
               />
-  
             </div>
           </div>
         </div>
