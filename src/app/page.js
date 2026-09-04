@@ -223,6 +223,19 @@ export default function Home() {
     setError("");
   };
 
+  const handleRenameConversation = (conversationId, newTitle) => {
+    setConversations((currentConversations) =>
+      currentConversations.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              title: newTitle,
+            }
+          : conversation
+      )
+    );
+  };
+
   const handleDeleteConversation = (conversationId) => {
     if (isLoading) return;
 
@@ -262,6 +275,7 @@ export default function Home() {
           onNewChat={handleNewChat}
           onSelectConversation={handleSelectConversation}
           onDeleteConversation={handleDeleteConversation}
+          onRenameConversation={handleRenameConversation}
         />
       </aside>
 
