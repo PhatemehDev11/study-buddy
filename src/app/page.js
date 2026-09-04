@@ -39,10 +39,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(conversations)
-    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
   }, [conversations]);
 
   const updateConversation = (conversationId, updatedMessages) => {
@@ -58,34 +55,10 @@ export default function Home() {
     );
   };
 
-  const createConversation = (firstMessage) => {
-    const conversation = {
-      id: Date.now(),
-      title:
-        firstMessage.length > 40
-          ? `${firstMessage.slice(0, 40)}...`
-          : firstMessage,
-      messages: [],
-    };
-
-    setConversations((currentConversations) => [
-      conversation,
-      ...currentConversations,
-    ]);
-
-    setActiveConversationId(conversation.id);
-
-    return conversation.id;
-  };
-
   const handleSendMessage = async (content) => {
     if (isLoading) return;
 
-    let conversationId = activeConversationId;
-
-    if (!conversationId) {
-      conversationId = createConversation(content);
-    }
+    setError("");
 
     const userMessage = {
       id: Date.now(),
@@ -93,18 +66,40 @@ export default function Home() {
       content,
     };
 
-    const updatedMessages = [...messages, userMessage];
+    let conversationId = activeConversationId;
+    let previousMessages = messages;
+
+    // اگر چت جدید است، conversation را می‌سازیم
+    if (!conversationId) {
+      conversationId = Date.now();
+
+      const newConversation = {
+        id: conversationId,
+        title: content.length > 40 ? `${content.slice(0, 40)}...` : content,
+        messages: [],
+      };
+
+      setConversations((currentConversations) => [
+        newConversation,
+        ...currentConversations,
+      ]);
+
+      setActiveConversationId(conversationId);
+
+      previousMessages = [];
+    }
+
+    const updatedMessages = [...previousMessages, userMessage];
 
     setMessages(updatedMessages);
     updateConversation(conversationId, updatedMessages);
 
     setIsLoading(true);
-    setError("");
+
+    const controller = new AbortController();
+    abortController.current = controller;
 
     try {
-      const controller = new AbortController();
-      abortController.current = controller;
-
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
@@ -122,9 +117,7 @@ export default function Home() {
       if (!response.ok) {
         const data = await response.json();
 
-        throw new Error(
-          data.error || "Failed to get AI response"
-        );
+        throw new Error(data.error || "Failed to get AI response");
       }
 
       if (!response.body) {
@@ -133,14 +126,13 @@ export default function Home() {
 
       const assistantId = Date.now() + 1;
 
-      const messagesWithAssistant = [
-        ...updatedMessages,
-        {
-          id: assistantId,
-          role: "assistant",
-          content: "",
-        },
-      ];
+      const assistantMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+      };
+
+      const messagesWithAssistant = [...updatedMessages, assistantMessage];
 
       setMessages(messagesWithAssistant);
       updateConversation(conversationId, messagesWithAssistant);
@@ -180,30 +172,23 @@ export default function Home() {
           try {
             const data = JSON.parse(trimmedLine.slice(6));
 
-            const text = data.choices?.[0]?.delta?.content;
+            const text = data.choices?.[0]?.delta?.content || "";
 
             if (!text) continue;
 
             assistantContent += text;
 
-            setMessages((currentMessages) => {
-              const updatedMessages = currentMessages.map(
-                (message) =>
-                  message.id === assistantId
-                    ? {
-                        ...message,
-                        content: assistantContent,
-                      }
-                    : message
-              );
+            const currentMessages = [
+              ...updatedMessages,
+              {
+                ...assistantMessage,
+                content: assistantContent,
+              },
+            ];
 
-              updateConversation(
-                conversationId,
-                updatedMessages
-              );
+            setMessages(currentMessages);
 
-              return updatedMessages;
-            });
+            updateConversation(conversationId, currentMessages);
           } catch {
             // Ignore malformed stream chunks.
           }
@@ -211,10 +196,12 @@ export default function Home() {
       }
     } catch (error) {
       if (error.name === "AbortError") {
+        console.log("Generation stopped");
         return;
       }
 
       console.error(error);
+
       setError(error.message || "Something went wrong.");
     } finally {
       setIsLoading(false);
@@ -234,6 +221,22 @@ export default function Home() {
     setActiveConversationId(null);
     setIsLoading(false);
     setError("");
+  };
+
+  const handleDeleteConversation = (conversationId) => {
+    if (isLoading) return;
+
+    setConversations((currentConversations) =>
+      currentConversations.filter(
+        (conversation) => conversation.id !== conversationId
+      )
+    );
+
+    if (activeConversationId === conversationId) {
+      setMessages([]);
+      setActiveConversationId(null);
+      setError("");
+    }
   };
 
   const handleSelectConversation = (conversationId) => {
@@ -258,6 +261,7 @@ export default function Home() {
           activeConversationId={activeConversationId}
           onNewChat={handleNewChat}
           onSelectConversation={handleSelectConversation}
+          onDeleteConversation={handleDeleteConversation}
         />
       </aside>
 
@@ -267,10 +271,7 @@ export default function Home() {
 
           <div className="min-h-0 flex-1">
             <div className="mx-auto flex h-full w-full max-w-4xl flex-col px-4 sm:px-6 lg:px-8">
-              <Chat
-                messages={messages}
-                isLoading={isLoading}
-              />
+              <Chat messages={messages} isLoading={isLoading} />
 
               {error && (
                 <div className="mb-3 flex shrink-0 items-center justify-between rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">

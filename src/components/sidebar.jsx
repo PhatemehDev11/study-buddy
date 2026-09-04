@@ -1,10 +1,16 @@
-import { Brain, Plus, MessageSquare } from "lucide-react";
+import {
+  Brain,
+  Plus,
+  MessageSquare,
+  Trash2,
+} from "lucide-react";
 
 export default function Sidebar({
   onNewChat,
   conversations,
   activeConversationId,
   onSelectConversation,
+  onDeleteConversation,
 }) {
   return (
     <aside className="flex h-full w-full flex-col bg-[#0d0d10] p-4">
@@ -14,7 +20,10 @@ export default function Sidebar({
         </div>
 
         <div>
-          <h1 className="text-sm font-semibold">Study Buddy</h1>
+          <h1 className="text-sm font-semibold">
+            Study Buddy
+          </h1>
+
           <p className="text-xs text-zinc-500">
             Your AI study partner
           </p>
@@ -42,26 +51,48 @@ export default function Sidebar({
             </p>
           ) : (
             conversations.map((conversation) => (
-              <button
+              <div
                 key={conversation.id}
-                type="button"
-                onClick={() => onSelectConversation(conversation.id)}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition ${
+                className={`group flex items-center gap-2 rounded-lg transition ${
                   activeConversationId === conversation.id
-                    ? "bg-white/[0.08] text-zinc-200"
-                    : "text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-200"
+                    ? "bg-white/[0.08]"
+                    : "hover:bg-white/[0.05]"
                 }`}
               >
-                <MessageSquare
-                  size={15}
-                  strokeWidth={1.7}
-                  className="shrink-0 text-zinc-600"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSelectConversation(conversation.id)
+                  }
+                  className={`flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left text-sm ${
+                    activeConversationId === conversation.id
+                      ? "text-zinc-200"
+                      : "text-zinc-400 group-hover:text-zinc-200"
+                  }`}
+                >
+                  <MessageSquare
+                    size={15}
+                    strokeWidth={1.7}
+                    className="shrink-0 text-zinc-600"
+                  />
 
-                <span className="truncate">
-                  {conversation.title}
-                </span>
-              </button>
+                  <span className="truncate">
+                    {conversation.title}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    onDeleteConversation(conversation.id)
+                  }
+                  className="mr-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-600 opacity-0 transition hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
+                  title="Delete conversation"
+                  aria-label="Delete conversation"
+                >
+                  <Trash2 size={14} strokeWidth={1.8} />
+                </button>
+              </div>
             ))
           )}
         </div>
