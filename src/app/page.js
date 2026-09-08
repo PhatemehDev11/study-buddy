@@ -1,69 +1,315 @@
-import Image from "next/image";
+"use client";
+
+import Sidebar from "@/components/sidebar";
+import MobileHeader from "@/components/MobileHeader";
+import ChatInput from "@/components/ChatInput";
+import Chat from "@/components/chat";
+import { useEffect, useRef, useState } from "react";
+
+const STORAGE_KEY = "study-buddy-conversations";
 
 export default function Home() {
+  const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const abortController = useRef(null);
+
+  useEffect(() => {
+    const savedConversations = localStorage.getItem(STORAGE_KEY);
+
+    if (!savedConversations) return;
+
+    try {
+      const parsedConversations = JSON.parse(savedConversations);
+
+      setConversations(parsedConversations);
+
+      if (parsedConversations.length > 0) {
+        const latestConversation = parsedConversations[0];
+
+        setActiveConversationId(latestConversation.id);
+        setMessages(latestConversation.messages || []);
+      }
+    } catch (error) {
+      console.error("Failed to load conversations:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+  }, [conversations]);
+
+  const updateConversation = (conversationId, updatedMessages) => {
+    setConversations((currentConversations) =>
+      currentConversations.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              messages: updatedMessages,
+            }
+          : conversation
+      )
+    );
+  };
+
+  const handleSendMessage = async (content) => {
+    if (isLoading) return;
+
+    setError("");
+
+    const userMessage = {
+      id: Date.now(),
+      role: "user",
+      content,
+    };
+
+    let conversationId = activeConversationId;
+    let previousMessages = messages;
+
+    // اگر چت جدید است، conversation را می‌سازیم
+    if (!conversationId) {
+      conversationId = Date.now();
+
+      const newConversation = {
+        id: conversationId,
+        title: content.length > 40 ? `${content.slice(0, 40)}...` : content,
+        messages: [],
+      };
+
+      setConversations((currentConversations) => [
+        newConversation,
+        ...currentConversations,
+      ]);
+
+      setActiveConversationId(conversationId);
+
+      previousMessages = [];
+    }
+
+    const updatedMessages = [...previousMessages, userMessage];
+
+    setMessages(updatedMessages);
+    updateConversation(conversationId, updatedMessages);
+
+    setIsLoading(true);
+
+    const controller = new AbortController();
+    abortController.current = controller;
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: updatedMessages.map(({ role, content }) => ({
+            role,
+            content,
+          })),
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+
+        throw new Error(data.error || "Failed to get AI response");
+      }
+
+      if (!response.body) {
+        throw new Error("No response body received.");
+      }
+
+      const assistantId = Date.now() + 1;
+
+      const assistantMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+      };
+
+      const messagesWithAssistant = [...updatedMessages, assistantMessage];
+
+      setMessages(messagesWithAssistant);
+      updateConversation(conversationId, messagesWithAssistant);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      let buffer = "";
+      let assistantContent = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) break;
+
+        buffer += decoder.decode(value, {
+          stream: true,
+        });
+
+        const lines = buffer.split("\n");
+
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+
+          if (!trimmedLine) continue;
+
+          if (trimmedLine === "data: [DONE]") {
+            continue;
+          }
+
+          if (!trimmedLine.startsWith("data: ")) {
+            continue;
+          }
+
+          try {
+            const data = JSON.parse(trimmedLine.slice(6));
+
+            const text = data.choices?.[0]?.delta?.content || "";
+
+            if (!text) continue;
+
+            assistantContent += text;
+
+            const currentMessages = [
+              ...updatedMessages,
+              {
+                ...assistantMessage,
+                content: assistantContent,
+              },
+            ];
+
+            setMessages(currentMessages);
+
+            updateConversation(conversationId, currentMessages);
+          } catch {
+            // Ignore malformed stream chunks.
+          }
+        }
+      }
+    } catch (error) {
+      if (error.name === "AbortError") {
+        console.log("Generation stopped");
+        return;
+      }
+
+      console.error(error);
+
+      setError(error.message || "Something went wrong.");
+    } finally {
+      setIsLoading(false);
+      abortController.current = null;
+    }
+  };
+
+  const handleStop = () => {
+    abortController.current?.abort();
+  };
+
+  const handleNewChat = () => {
+    abortController.current?.abort();
+    abortController.current = null;
+
+    setMessages([]);
+    setActiveConversationId(null);
+    setIsLoading(false);
+    setError("");
+  };
+
+  const handleRenameConversation = (conversationId, newTitle) => {
+    setConversations((currentConversations) =>
+      currentConversations.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              title: newTitle,
+            }
+          : conversation
+      )
+    );
+  };
+
+  const handleDeleteConversation = (conversationId) => {
+    if (isLoading) return;
+
+    setConversations((currentConversations) =>
+      currentConversations.filter(
+        (conversation) => conversation.id !== conversationId
+      )
+    );
+
+    if (activeConversationId === conversationId) {
+      setMessages([]);
+      setActiveConversationId(null);
+      setError("");
+    }
+  };
+
+  const handleSelectConversation = (conversationId) => {
+    if (isLoading) return;
+
+    const conversation = conversations.find(
+      (conversation) => conversation.id === conversationId
+    );
+
+    if (!conversation) return;
+
+    setActiveConversationId(conversationId);
+    setMessages(conversation.messages || []);
+    setError("");
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="h-screen overflow-hidden bg-[#09090b] text-zinc-100">
+      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 border-r border-white/10 bg-[#0d0d0f] lg:block">
+        <Sidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onNewChat={handleNewChat}
+          onSelectConversation={handleSelectConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onRenameConversation={handleRenameConversation}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.js
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      </aside>
+
+      <section className="h-screen min-w-0 lg:ml-64">
+        <div className="flex h-full flex-col">
+          <MobileHeader />
+
+          <div className="min-h-0 flex-1">
+            <div className="mx-auto flex h-full w-full max-w-4xl flex-col px-4 sm:px-6 lg:px-8">
+              <Chat messages={messages} isLoading={isLoading} />
+
+              {error && (
+                <div className="mb-3 flex shrink-0 items-center justify-between rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">
+                  <span>{error}</span>
+
+                  <button
+                    type="button"
+                    onClick={() => setError("")}
+                    className="ml-4 text-red-400 transition hover:text-red-200"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              <ChatInput
+                onSend={handleSendMessage}
+                onStop={handleStop}
+                isLoading={isLoading}
+              />
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }
